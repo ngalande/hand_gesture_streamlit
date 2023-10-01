@@ -1,6 +1,6 @@
-Installation
+**Installation**
 pip install -r requirements.txt
 
-Run
+**Run**
 
 streamlit run app.py
