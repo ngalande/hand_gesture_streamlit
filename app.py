@@ -4,6 +4,13 @@ import av
 import mediapipe as mp
 from streamlit_webrtc import webrtc_streamer, WebRtcMode, RTCConfiguration
 import streamlit as st
+from tensorflow.keras.models import load_model
+# Load the gesture recognizer model
+model = load_model('mp_hand_gesture')
+# initialize mediapipe
+mpHands = mp.solutions.hands
+hands = mpHands.Hands(max_num_hands=1, min_detection_confidence=0.7)
+mpDraw = mp.solutions.drawing_utils
 
 # Remove the "Made by Streamlit" footer
 # Add custom CSS to hide the Streamlit footer
@@ -15,32 +22,48 @@ hide_streamlit_style = """
             """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 st.title("Gesture Recognition")
-mp_drawing = mp.solutions.drawing_utils
-mp_drawing_styles = mp.solutions.drawing_styles
-mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(
-    model_complexity=0,
-    min_detection_confidence=0.5,
-    min_tracking_confidence=0.5
-)
+
+
+# Load class names
+f = open('gesture.names', 'r')
+classNames = f.read().split('\n')
+f.close()
+print(classNames)
 
 def process(image):
     image.flags.writeable = False
+    x, y, c = image.shape
+    
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     results = hands.process(image)
-
+    className = ''
     # Draw the hand annotations on the image.
     image.flags.writeable = True
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
     if results.multi_hand_landmarks:
-      for hand_landmarks in results.multi_hand_landmarks:
-        mp_drawing.draw_landmarks(
-            image,
-            hand_landmarks,
-            mp_hands.HAND_CONNECTIONS,
-            mp_drawing_styles.get_default_hand_landmarks_style(),
-            mp_drawing_styles.get_default_hand_connections_style())
-    return cv2.flip(image, 1)
+        landmarks = []
+        for handslms in results.multi_hand_landmarks:
+            for lm in handslms.landmark:
+            # print(id, lm)
+                lmx = int(lm.x * x)
+                lmy = int(lm.y * y)
+
+                landmarks.append([lmx, lmy])
+          
+          
+        # Drawing landmarks on frames
+        mpDraw.draw_landmarks(image, handslms, mpHands.HAND_CONNECTIONS)
+        # Predict gesture
+        prediction = model.predict([landmarks])
+        classID = np.argmax(prediction)
+        className = classNames[classID]
+    image = cv2.flip(image, 1)
+    # show the prediction on the frame
+    cv2.putText(image, className, (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 
+                   1, (0,0,255), 2, cv2.LINE_AA)
+
+    
+    return image
 
 
 RTC_CONFIGURATION = RTCConfiguration(
